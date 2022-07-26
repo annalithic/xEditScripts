@@ -11,19 +11,14 @@ begin
 		e := ReferencedByIndex(MapMarkerStat, i);
 		if Signature(e) = 'REFR' then begin
 			s := GetElementEditValues(e, 'Map Marker\FULL');
-			if GetElementNativeValues(e, 'Map Marker\FNAM') and 8 > 0 then begin
-				for j := 0 to Pred(ReferencedByCount(e)) do begin
-					markerParent := ReferencedByIndex(e, j);
+			if GetElementNativeValues(e, 'Map Marker\FNAM') and 8 > 0 then
+				for i := 0 to Pred(ReferencedByCount(e)) do begin
+					markerParent := ReferencedByIndex(e, i);
 					if Signature(markerParent) = 'LCTN' then begin
-						loc := GetElementEditValues(markerParent, 'FULL');
-						if s = '' then
-							s := loc
-						else if loc <> s then
-							s := loc + ' (' + s + ')';
+						s := GetElementEditValues(markerParent, 'FULL');
 						Break;
 					end;
 				end;
-			end;
 
 			//if GetIsInitiallyDisabled(e) then
 			//	s := s + ' (DISABLED)';
