@@ -34,7 +34,7 @@ begin
 	Result := '"' +
 		GetEditValue(ElementByName(e, 'Run On')) + '.' +
 		GetEditValue(ElementByName(e, 'Function')) + '(' +
-		param + ')' +
+		param + ') ' +
 		comp + ' ' +
 		GetEditValue(ElementByName(e, 'Comparison Value')) + 
 		'"'
@@ -44,8 +44,8 @@ end;
 function BranchNode(e: IInterface; indent: integer): integer;
 var
   i: integer;
-  children, child, conditions, condition: IInterface;
-  name: string;
+  children, child, conditions, condition, location: IInterface;
+  name, world: string;
 begin
   
   if (Signature(e) = 'PCBN') or (Signature(e) = 'PCMT') then begin
@@ -69,7 +69,16 @@ begin
   end 
   else if Signature(e) = 'PCCN' then begin
     child := LinksTo(ElementBySignature(e, 'PCCC'));
-	sl.Add(StringOfChar(' ', indent * 2) + EditorID(child));
+	world := StringOfChar(' ', indent * 2) + EditorID(child);
+	
+	if Signature(child) = 'WRLD' then begin
+	  location := LinksTo(ElementBySignature(child, 'XLCN'));
+	  world := world + ' "' +  
+	  GetEditValue(ElementBySignature(location, 'FULL')) + '"'
+	  ;
+
+	end;
+	sl.Add(world);
   end;
 end;
 
