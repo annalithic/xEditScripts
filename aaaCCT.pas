@@ -14,10 +14,10 @@ end;
 
 function ApplyRuleset(rules: IInterface; keywords: TList): string;
 var
-  i, j, nameIndex: integer;
-  rule, ruleKeywords: IInterface;
-  applies: boolean;
-  name: string;
+	i, j, nameIndex: integer;
+	rule, ruleKeywords: IInterface;
+	applies: boolean;
+	name: string;
 begin
 	for i := 0 to Pred(ElementCount(rules)) do begin
 		rule := ElementByIndex(rules, i);
@@ -41,9 +41,9 @@ end;
 function Process(e: IInterface): integer;
 var
 	i, j, prefixIndex: integer;
-	attachPoint: cardinal;
+	attachPoint, keyword: cardinal;
 	templates, omods, omod, properties, omodproperty: IInterface;
-	name,
+	name, scannerTemperament, scannerHarvest, scannerDomesticate,
 	diet, biomeFaction, temperament, organicResource, resourceType, skin, schedule, size, 
 	challenge, combatstyle, enviro1, enviro2, enviro3, extramods, prefix, fullname, suffix1, suffix2: string;
 	keywords: TList;
@@ -91,28 +91,39 @@ begin
 			end;
 		end;
 		
+		for i := 0 to Pred(keywords.Count) do begin
+			keyword := keywords[i];
+			if keyword = $001699AB then scannerTemperament := 'Temperament: Aggressive'
+			else if keyword = $00280174 then scannerTemperament := 'Temperament: Wary'
+			else if keyword = $00280175 then scannerTemperament := 'Temperament: Fearless'
+			else if keyword = $00169995 then scannerTemperament := 'Temperament: Skittish'
+			else if keyword = $001699A3 then scannerTemperament := 'Temperament: Territorial'
+			else if keyword = $00280177 then scannerTemperament := 'Temperament: Defensive'
+			else if keyword = $001699A1 then scannerTemperament := 'Temperament: Peaceful'
+			else if keyword = $002634BC then scannerHarvest := 'Non-lethal harvest'
+			else if keyword = $002AC11D then scannerDomesticate := 'Outpost production allowed';
+		end;
 		
-		//prefix
 		prefix := ApplyRuleset(prefixRules, keywords);
 		if length(prefix) > 0 then name := prefix + ' ';
 		
-		//name
 		fullname := GetEditValue(ElementBySignature(e, 'FULL'));
 		if length(fullname) > 0 then name := name + fullname + ' ';
 
-		//suffix 1
 		suffix1 := ApplyRuleset(suffixRules1, keywords);		
-		if length(suffix1) > 0 then name := name + suffix1 + ' ';
+		if length(suffix1) > 0 then name := name + suffix1;
 
 
-		//suffix 2
 		suffix2 := ApplyRuleset(suffixRules2, keywords);		
-		if length(suffix2) > 0 then name := name + suffix2;
+		if length(suffix2) > 0 then name :=name + ' ' + suffix2;
 
 		
-		sl.Add(Format('%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s', [
+		sl.Add(Format('%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s', [
 			EditorID(e),
 			name,
+			scannerTemperament,
+			scannerHarvest,
+			scannerDomesticate,
 			diet,
 			biomeFaction,
 			temperament,
