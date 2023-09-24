@@ -38,7 +38,7 @@ begin
 end;
 
 
-function Process(e: IInterface): integer;
+function ProcessCreature(e: IInterface; biomes: string): integer;
 var
 	i, j, prefixIndex: integer;
 	attachPoint, keyword: cardinal;
@@ -93,13 +93,13 @@ begin
 		
 		for i := 0 to Pred(keywords.Count) do begin
 			keyword := keywords[i];
-			if keyword = $001699AB then scannerTemperament := 'Temperament: Aggressive'
-			else if keyword = $00280174 then scannerTemperament := 'Temperament: Wary'
-			else if keyword = $00280175 then scannerTemperament := 'Temperament: Fearless'
-			else if keyword = $00169995 then scannerTemperament := 'Temperament: Skittish'
-			else if keyword = $001699A3 then scannerTemperament := 'Temperament: Territorial'
-			else if keyword = $00280177 then scannerTemperament := 'Temperament: Defensive'
-			else if keyword = $001699A1 then scannerTemperament := 'Temperament: Peaceful'
+			if keyword = $001699AB then scannerTemperament := 'Aggressive'
+			else if keyword = $00280174 then scannerTemperament := 'Wary'
+			else if keyword = $00280175 then scannerTemperament := 'Fearless'
+			else if keyword = $00169995 then scannerTemperament := 'Skittish'
+			else if keyword = $001699A3 then scannerTemperament := 'Territorial'
+			else if keyword = $00280177 then scannerTemperament := 'Defensive'
+			else if keyword = $001699A1 then scannerTemperament := 'Peaceful'
 			else if keyword = $002634BC then scannerHarvest := 'Non-lethal harvest'
 			else if keyword = $002AC11D then scannerDomesticate := 'Outpost production allowed';
 		end;
@@ -118,9 +118,10 @@ begin
 		if length(suffix2) > 0 then name :=name + ' ' + suffix2;
 
 		
-		sl.Add(Format('%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s', [
+		sl.Add(Format('%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s', [
 			EditorID(e),
 			name,
+			biomes,
 			scannerTemperament,
 			scannerHarvest,
 			scannerDomesticate,
@@ -143,6 +144,54 @@ begin
 		keywords.Free;
 	end;
 end;
+
+function Process(e: IInterface): integer;
+var
+  i, p, searchval: integer;
+  components, component, biomes, perbiome, creature: IInterface;
+  name, biomename, tempBiomeList: string;
+  biomeList: TStringList;
+  dictCreatures, dictBiomes: TList;
+begin
+  if Signature(e) <> 'PNDT' then
+    Exit;
+	dictCreatures := TList.Create;
+	biomeList := TStringList.Create;
+	
+	components := ElementByIndex(e, 2);
+	for i := 0 to Pred(ElementCount(components)) do begin
+		component := ElementByIndex(components, i);
+		if GetEditValue(ElementBySignature(component, 'BFCB')) = 'TESFullName_Component' then
+			name := GetEditValue(ElementByIndex(ElementByIndex(component, 1), 0));
+	end;
+	biomes := ElementByIndex(e, 4);
+	for i := 0 to Pred(ElementCount(biomes)) do begin
+		perbiome := ElementByIndex(biomes, i);
+		biomename :=  GetEditValue(ElementBySignature(LinksTo(ElementByIndex(perbiome, 0)), 'FULL'));
+		for p := 0 to Pred(ElementCount(ElementByName(perbiome, 'Fauna'))) do begin
+			creature := GetNativeValue(ElementByIndex(ElementByIndex(ElementByName(perbiome, 'Fauna'), p), 0));
+			searchval := dictCreatures.IndexOf(creature);
+			if searchval = -1 then begin
+				dictCreatures.Add(creature);
+				biomeList.Add(biomename);
+			end else begin
+				tempBiomeList := biomeList[searchval];
+				tempBiomeList := tempBiomeList  + ', ' + biomename;
+				biomeList[searchval] := tempBiomeList;
+			end;
+		end;
+	end;
+	
+	for i := 0 to Pred(dictCreatures.Count) do begin
+		creature := RecordByFormID(FileByIndex(0), dictCreatures[i], False);
+		ProcessCreature(creature, biomeList[i]);
+	end
+	
+	dictCreatures.Free;
+	biomeList.Free;
+end;
+
+
 
 function Finalize: integer;
 var
