@@ -2,33 +2,70 @@ unit UserScript;
 
 var
 	sl: TStringList;
+	prefixRules, suffixRules1, suffixRules2: IInterface; 
 
 function Initialize: integer;
 begin
 	sl := TStringList.Create;
+	prefixRules := ElementByName(ElementByIndex(ElementByName(RecordByFormID(FileByIndex(0), $00220394, False), 'Naming Rules'), 0), 'Names');
+	suffixRules1 := ElementByName(ElementByIndex(ElementByName(RecordByFormID(FileByIndex(0), $003E8650, False), 'Naming Rules'), 0), 'Names');
+	suffixRules2 := ElementByName(ElementByIndex(ElementByName(RecordByFormID(FileByIndex(0), $003E8650, False), 'Naming Rules'), 1), 'Names');
 end;
+
+function ApplyRuleset(rules: IInterface; keywords: TList): string;
+var
+  i, j, nameIndex: integer;
+  rule, ruleKeywords: IInterface;
+  applies: boolean;
+  name: string;
+begin
+	for i := 0 to Pred(ElementCount(rules)) do begin
+		rule := ElementByIndex(rules, i);
+		if GetNativeValue(ElementBySignature(rule, 'YNAM')) > nameIndex then begin
+			applies := True;
+			ruleKeywords := ElementByPath(rule, 'Keywords\KWDA');
+			for j := 0 to Pred(ElementCount(ruleKeywords)) do begin
+				if keywords.IndexOf(GetNativeValue(ElementByIndex(ruleKeywords, j))) = -1 then applies := False;
+			end;
+			if applies then begin
+				name := GetEditValue(ElementBySignature(rule, 'WNAM'));
+				nameIndex := GetNativeValue(ElementBySignature(rule, 'YNAM'));
+			end;
+		end;
+
+	end;
+	Result := name;
+end;
+
 
 function Process(e: IInterface): integer;
 var
-	i, j: integer;
+	i, j, prefixIndex: integer;
 	attachPoint: cardinal;
-	templates, template, mods, omod, properties, omodproperty, keyword: IInterface;
-	name, diet, biomeFaction, temperament, organicResource, resourceType, skin, schedule, size,
-	challenge, combatstyle, enviro1, enviro2, enviro3, extramods: string;
+	templates, omods, omod, properties, omodproperty: IInterface;
+	name,
+	diet, biomeFaction, temperament, organicResource, resourceType, skin, schedule, size, 
+	challenge, combatstyle, enviro1, enviro2, enviro3, extramods, prefix, fullname, suffix1, suffix2: string;
 	keywords: TList;
+	isCCT: Boolean;
 begin
 	if Signature(e) <> 'NPC_' then
 		Exit;
-		
+
+	
 	keywords := TList.Create;
+	isCCT := False;
+	for i := 0 to Pred(ElementCount(ElementByPath(e, 'Keywords\KWDA'))) do begin
+		keywords.Add(GetNativeValue(ElementByIndex(ElementByPath(e, 'Keywords\KWDA'), i)));
+		if keywords[i] = $002AD3EC then isCCT := True;
+	end;
+	
 		
 	templates := ElementByIndex(ElementByName(e, 'Object Template'), 0);
-	if ElementCount(templates) = 2 then begin
-		template := ElementBySignature(ElementByIndex(ElementByIndex(templates, 1), 0), 'OBTS');
-		mods := ElementByName(template, 'Includes');
-		name := EditorID(e);
-		for i := 0 to Pred(ElementCount(mods)) do begin
-			omod := LinksTo(ElementByName(ElementByIndex(mods, i), 'Mod'));
+	if (ElementCount(templates) = 2) and isCCT then begin
+		omods := ElementByName(ElementBySignature(ElementByIndex(ElementByIndex(templates, 1), 0), 'OBTS'), 'Includes');
+		for i := 0 to Pred(ElementCount(omods)) do begin
+			omod := LinksTo(ElementByName(ElementByIndex(omods, i), 'Mod'));
 			attachPoint := GetNativeValue(ElementByPath(omod, 'DATA\Attach Point'));
 			if attachPoint = $002AD3E8 then diet := EditorID(omod)
 			else if attachPoint = $002AD3E9 then biomeFaction := EditorID(omod)
@@ -38,7 +75,6 @@ begin
 			else if attachPoint = $002AD3EB then skin := EditorID(omod)
 			else if attachPoint = $0020AA13 then schedule := EditorID(omod)
 			else if attachPoint = $002AD3EA then size := EditorID(omod)
-			
 			else if attachPoint = $001C5212 then challenge := EditorID(omod)
 			else if attachPoint = $001D9CF8 then combatstyle := EditorID(omod)
 			else if attachPoint = $0020AA16 then enviro1 := EditorID(omod)
@@ -55,28 +91,45 @@ begin
 			end;
 		end;
 		
-		//for i := 0 to Pred(keywords.Count) do begin
-		//	keyword := RecordByFormID(FileByIndex(0), keywords[i], False);
-		//	sl.Add(EditorID(keyword));
-		//end;
 		
-		sl.Add(Format('%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s', [
-				name,
-				diet,
-				biomeFaction,
-				temperament,
-				organicResource,
-				resourceType,
-				skin,
-				schedule,
-				size,
-				challenge,
-				combatstyle,
-				enviro1,
-				enviro2,
-				enviro3,
-				extramods
+		//prefix
+		prefix := ApplyRuleset(prefixRules, keywords);
+		if length(prefix) > 0 then name := prefix + ' ';
+		
+		//name
+		fullname := GetEditValue(ElementBySignature(e, 'FULL'));
+		if length(fullname) > 0 then name := name + fullname + ' ';
+
+		//suffix 1
+		suffix1 := ApplyRuleset(suffixRules1, keywords);		
+		if length(suffix1) > 0 then name := name + suffix1 + ' ';
+
+
+		//suffix 2
+		suffix2 := ApplyRuleset(suffixRules2, keywords);		
+		if length(suffix2) > 0 then name := name + suffix2;
+
+		
+		sl.Add(Format('%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s', [
+			EditorID(e),
+			name,
+			diet,
+			biomeFaction,
+			temperament,
+			organicResource,
+			resourceType,
+			skin,
+			schedule,
+			size,
+			challenge,
+			combatstyle,
+			enviro1,
+			enviro2,
+			enviro3,
+			extramods
 		]));
+		
+		keywords.Free;
 	end;
 end;
 
