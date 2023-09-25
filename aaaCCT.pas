@@ -2,7 +2,7 @@ unit UserScript;
 
 var
 	sl: TStringList;
-	prefixRules, suffixRules1, suffixRules2: IInterface; 
+	prefixRules, suffixRules1, suffixRules2, cctlld: IInterface; 
 
 function Initialize: integer;
 begin
@@ -10,6 +10,49 @@ begin
 	prefixRules := ElementByName(ElementByIndex(ElementByName(RecordByFormID(FileByIndex(0), $00220394, False), 'Naming Rules'), 0), 'Names');
 	suffixRules1 := ElementByName(ElementByIndex(ElementByName(RecordByFormID(FileByIndex(0), $003E8650, False), 'Naming Rules'), 0), 'Names');
 	suffixRules2 := ElementByName(ElementByIndex(ElementByName(RecordByFormID(FileByIndex(0), $003E8650, False), 'Naming Rules'), 1), 'Names');
+	cctlld := ElementByName(RecordByFormID(FileByIndex(0), $00074272, False), 'Leveled List Entries');
+end;
+
+function ApplyConditions(conditions: IInterface; avifs: TList): Boolean;
+var
+	i, searchval, operator: integer;
+	res, currentOr, currentTrue: Boolean;
+	ctda, avif: IInterface;
+begin
+	res := True;
+	for i := 0 to Pred(ElementCount(conditions)) do begin
+
+		ctda := ElementBySignature(ElementByIndex(conditions, i), 'CTDA');
+		
+		operator := GetNativeValue(ElementByName(ctda, 'Type'));
+		if operator and 1 <> 0 then currentOr := True
+		else currentOr := False;
+		
+		if GetEditValue(ElementByName(ctda, 'Function')) = 'GetValue' then begin
+			avif := GetNativeValue(ElementByName(ctda, 'Actor Value'));
+			searchval := avifs.IndexOf(avif);
+			if searchval <> -1 then currentTrue := True; 
+		end else if GetEditValue(ElementByName(ctda, 'Function')) = 'IsTrueForConditionForm' then begin
+			currentTrue := ApplyConditions(ElementByName(LinksTo(ElementByName(ctda, 'Condition Form')), 'Conditions'), avifs);
+		end;
+		
+		if not currentOr then begin
+			if not currentTrue then begin
+				Result := False;
+				Exit;
+			end;
+			currentTrue := False;
+		end;
+
+		
+	end;
+	
+	if not currentTrue then begin
+		Result := False;
+		Exit;
+	end;
+	
+	Result := True;
 end;
 
 function ApplyRuleset(rules: IInterface; keywords: TList): string;
@@ -42,18 +85,19 @@ function ProcessCreature(e: IInterface; biomes: string): integer;
 var
 	i, j, prefixIndex: integer;
 	attachPoint, keyword: cardinal;
-	templates, omods, omod, properties, omodproperty: IInterface;
+	templates, omods, omod, properties, omodproperty, lvliconditions, ctda: IInterface;
 	name, scannerTemperament, scannerHarvest, scannerDomesticate,
 	diet, biomeFaction, temperament, organicResource, resourceType, skin, schedule, size, 
-	challenge, combatstyle, enviro1, enviro2, enviro3, extramods, prefix, fullname, suffix1, suffix2: string;
-	keywords: TList;
-	isCCT: Boolean;
+	challenge, combatstyle, enviro1, enviro2, enviro3, extramods, prefix, fullname, suffix1, suffix2, resource: string;
+	keywords, avifs: TList;
+	isCCT, currentCondition: Boolean;
 begin
 	if Signature(e) <> 'NPC_' then
 		Exit;
 
 	
 	keywords := TList.Create;
+	avifs := TList.Create;
 	isCCT := False;
 	for i := 0 to Pred(ElementCount(ElementByPath(e, 'Keywords\KWDA'))) do begin
 		keywords.Add(GetNativeValue(ElementByIndex(ElementByPath(e, 'Keywords\KWDA'), i)));
@@ -85,11 +129,24 @@ begin
 			properties := ElementByPath(omod, 'DATA\Properties');
 			for j := 0 to Pred(ElementCount(properties)) do begin
 				omodproperty := ElementByIndex(properties, j);
-				if GetEditValue(ElementByName(omodproperty, 'Property Name')) = 'NPC - Keyword' then begin
-					keywords.Add(GetNativeValue(ElementByName(omodproperty, 'Value 1 - FormID')));
-				end;
+				if GetEditValue(ElementByName(omodproperty, 'Property Name')) = 'NPC - Keyword' then
+					keywords.Add(GetNativeValue(ElementByName(omodproperty, 'Value 1 - FormID')))
+				else if GetEditValue(ElementByName(omodproperty, 'Property Name')) = 'NPC - Actor Value' then
+					avifs.Add(GetNativeValue(ElementByName(omodproperty, 'Value 1 - FormID')));
 			end;
 		end;
+		
+		for i := 0 to Pred(ElementCount(cctlld)) do begin
+			lvliconditions := ElementByName(ElementByIndex(cctlld, i), 'Conditions');
+			currentCondition := ApplyConditions(lvliconditions, avifs);
+			if currentCondition then begin
+				resource := resource + GetEditValue(ElementBySignature(LinksTo(ElementByPath(ElementByIndex(cctlld, i), 'LVLO\Reference')), 'FULL'));
+			end;
+		end;
+		
+		//for i := 0 to Pred(avifs.Count) do begin
+		//	sl.Add(EditorID(RecordByFormID(FileByIndex(0), avifs[i], False)));
+		//end;
 		
 		for i := 0 to Pred(keywords.Count) do begin
 			keyword := keywords[i];
@@ -119,10 +176,12 @@ begin
 
 		
 		sl.Add(Format('%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s', [
+			IntToHex(FixedFormID(e), 8),
 			EditorID(e),
 			name,
 			biomes,
 			scannerTemperament,
+			resource,
 			scannerHarvest,
 			scannerDomesticate,
 			diet,
@@ -142,6 +201,7 @@ begin
 		]));
 		
 		keywords.Free;
+		avifs.Free;
 	end;
 end;
 
@@ -173,7 +233,7 @@ begin
 			searchval := dictCreatures.IndexOf(creature);
 			if searchval = -1 then begin
 				dictCreatures.Add(creature);
-				biomeList.Add(biomename);
+				biomeList.Add(name + '|' + biomename);
 			end else begin
 				tempBiomeList := biomeList[searchval];
 				tempBiomeList := tempBiomeList  + ', ' + biomename;
