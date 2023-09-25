@@ -88,7 +88,7 @@ var
 	templates, omods, omod, properties, omodproperty, lvliconditions, ctda: IInterface;
 	name, scannerTemperament, scannerHarvest, scannerDomesticate,
 	diet, biomeFaction, temperament, organicResource, resourceType, skin, schedule, size, 
-	challenge, combatstyle, enviro1, enviro2, enviro3, extramods, prefix, fullname, suffix1, suffix2, resource: string;
+	challenge, combatstyle, enviro1, enviro2, enviro3, extramods, prefix, fullname, suffix1, suffix2, resource, raceID, skinID: string;
 	keywords, avifs: TList;
 	isCCT, currentCondition: Boolean;
 begin
@@ -132,7 +132,11 @@ begin
 				if GetEditValue(ElementByName(omodproperty, 'Property Name')) = 'NPC - Keyword' then
 					keywords.Add(GetNativeValue(ElementByName(omodproperty, 'Value 1 - FormID')))
 				else if GetEditValue(ElementByName(omodproperty, 'Property Name')) = 'NPC - Actor Value' then
-					avifs.Add(GetNativeValue(ElementByName(omodproperty, 'Value 1 - FormID')));
+					avifs.Add(GetNativeValue(ElementByName(omodproperty, 'Value 1 - FormID')))
+				else if GetEditValue(ElementByName(omodproperty, 'Property Name')) = 'NPC - Race' then
+					raceID := EditorID(LinksTo(ElementByName(omodproperty, 'Value 1 - FormID')))
+				else if GetEditValue(ElementByName(omodproperty, 'Property Name')) = 'NPC - Skin' then
+					skinID := EditorID(LinksTo(ElementByName(omodproperty, 'Value 1 - FormID')));
 			end;
 		end;
 		
@@ -175,9 +179,11 @@ begin
 		if length(suffix2) > 0 then name :=name + ' ' + suffix2;
 
 		
-		sl.Add(Format('%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s', [
+		sl.Add(Format('%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s', [
 			IntToHex(FixedFormID(e), 8),
 			EditorID(e),
+			raceID,
+			skinID,
 			name,
 			biomes,
 			scannerTemperament,
