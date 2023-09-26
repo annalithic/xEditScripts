@@ -80,15 +80,37 @@ begin
 	Result := name;
 end;
 
+function ScannerSpell(spell: IInterface; scannerKey: cardinal) : string;
+var
+	i, j: integer;
+	keyword: cardinal;
+	effects, effect, keywords: IInterface;
+begin
+	effects := ElementByName(spell, 'Effects');
+	for i := 0 to Pred(ElementCount(effects)) do begin
+		effect := LinksTo(ElementBySignature(ElementByIndex(effects, i), 'EFID'));
+		keywords := ElementByPath(effect, 'Keywords\KWDA');
+		for j := 0 to Pred(ElementCount(keywords)) do begin
+			keyword := GetNativeValue(ElementByIndex(keywords, j));
+			if keyword = scannerKey then begin
+				Result := GetEditValue(ElementBySignature(effect, 'DNAM'));
+				Exit;
+			end;
+		end;
+	end;
+end;
+
 
 function ProcessCreature(e: IInterface; biomes: string): integer;
 var
-	i, j, prefixIndex: integer;
+	i, j, k, prefixIndex: integer;
 	attachPoint, keyword: cardinal;
-	templates, omods, omod, properties, omodproperty, lvliconditions, ctda: IInterface;
+	templates, omods, omod, properties, omodproperty, lvliconditions, ctda, perk, effect, spell: IInterface;
 	name, scannerTemperament, scannerHarvest, scannerDomesticate,
 	diet, biomeFaction, temperament, organicResource, resourceType, skin, schedule, size, 
-	challenge, combatstyle, enviro1, enviro2, enviro3, extramods, prefix, fullname, suffix1, suffix2, resource, raceID, skinID: string;
+	challenge, combatstyle, enviro1, enviro2, enviro3, extramods, 
+	prefix, fullname, suffix1, suffix2, resource, raceID, skinID, actorType, difficulty, scannerResistances, scannerAbilities, scannerWeaknesses,
+	creatureData, scannerData, extraData, omodData, ability, factions, behavior, keywordName, keywordNameStart, envkeywords: string;
 	keywords, avifs: TList;
 	isCCT, currentCondition: Boolean;
 begin
@@ -110,20 +132,20 @@ begin
 		omods := ElementByName(ElementBySignature(ElementByIndex(ElementByIndex(templates, 1), 0), 'OBTS'), 'Includes');
 		for i := 0 to Pred(ElementCount(omods)) do begin
 			omod := LinksTo(ElementByName(ElementByIndex(omods, i), 'Mod'));
+			
 			attachPoint := GetNativeValue(ElementByPath(omod, 'DATA\Attach Point'));
-			if attachPoint = $002AD3E8 then diet := EditorID(omod)
+			if attachPoint = $002AD3E8 then diet := GetEditValue(ElementBySignature(omod, 'FULL'))
+			else if attachPoint = $002AD3EA then size := GetEditValue(ElementBySignature(omod, 'FULL'))
+			else if attachPoint = $0020AA13 then schedule := GetEditValue(ElementBySignature(omod, 'FULL'))
+
 			else if attachPoint = $002AD3E9 then biomeFaction := EditorID(omod)
 			else if attachPoint = $0023CB01 then temperament := EditorID(omod)
 			else if attachPoint = $0023AF14 then organicResource := EditorID(omod)
 			else if attachPoint = $0023AF12 then resourceType := EditorID(omod)
 			else if attachPoint = $002AD3EB then skin := EditorID(omod)
-			else if attachPoint = $0020AA13 then schedule := EditorID(omod)
-			else if attachPoint = $002AD3EA then size := EditorID(omod)
 			else if attachPoint = $001C5212 then challenge := EditorID(omod)
-			else if attachPoint = $001D9CF8 then combatstyle := EditorID(omod)
-			else if attachPoint = $0020AA16 then enviro1 := EditorID(omod)
-			else if attachPoint = $0020AA15 then enviro2 := EditorID(omod)
-			else if attachPoint = $0020AA14 then enviro3 := EditorID(omod)
+			else if (attachPoint = $0020AA16) or (attachPoint = $0020AA15) or (attachPoint = $0020AA14) or (attachPoint = $0020AA17) then
+				behavior := behavior + GetEditValue(ElementBySignature(omod, 'FULL')) + ', '
 			else extramods := extramods + EditorID(omod)  + '|';
 			
 			properties := ElementByPath(omod, 'DATA\Properties');
@@ -136,7 +158,36 @@ begin
 				else if GetEditValue(ElementByName(omodproperty, 'Property Name')) = 'NPC - Race' then
 					raceID := EditorID(LinksTo(ElementByName(omodproperty, 'Value 1 - FormID')))
 				else if GetEditValue(ElementByName(omodproperty, 'Property Name')) = 'NPC - Skin' then
-					skinID := EditorID(LinksTo(ElementByName(omodproperty, 'Value 1 - FormID')));
+					skinID := EditorID(LinksTo(ElementByName(omodproperty, 'Value 1 - FormID')))
+				else if GetEditValue(ElementByName(omodproperty, 'Property Name')) = 'NPC - Combat Style ' then
+					combatstyle := EditorID(LinksTo(ElementByName(omodproperty, 'Value 1 - FormID')))
+				else if GetEditValue(ElementByName(omodproperty, 'Property Name')) = 'NPC - Faction' then
+					factions := factions + EditorID(LinksTo(ElementByName(omodproperty, 'Value 1 - FormID'))) + ', '
+				else if GetEditValue(ElementByName(omodproperty, 'Property Name')) = 'NPC - Perk' then begin
+					perk := ElementByName(ElementByIndex(ElementByName(LinksTo(ElementByName(omodproperty, 'Value 1 - FormID')), 'Ranks'), 0), 'Effects');
+					for k := 0 to Pred(ElementCount(perk)) do begin
+						effect := ElementByIndex(perk, k);
+						if GetEditValue(ElementByPath(effect, 'PRKE\Type')) = 'Ability' then begin
+							spell := LinksTo(ElementByPath(effect, 'DATA\Ability'));
+							ability := ScannerSpell(spell, $001D3B48);
+							if ability <> '' then scannerResistances := scannerResistances + ability + ', ';
+							ability := ScannerSpell(spell, $001D3B46);
+							if ability <> '' then scannerWeaknesses := scannerWeaknesses + ability + ', ';
+							ability := ScannerSpell(spell, $001D3B47);
+							if ability <> '' then scannerAbilities := scannerAbilities + ability + ', ';
+
+							
+						end;
+					end;
+				end else if GetEditValue(ElementByName(omodproperty, 'Property Name')) = 'NPC - Spell' then begin
+					spell := LinksTo(ElementByName(omodproperty, 'Value 1 - FormID'));
+					ability := ScannerSpell(spell, $001D3B48);
+					if ability <> '' then scannerResistances := scannerResistances + ability + ', ';
+					ability := ScannerSpell(spell, $001D3B46);
+					if ability <> '' then scannerWeaknesses := scannerWeaknesses + ability + ', ';
+					ability := ScannerSpell(spell, $001D3B47);
+					if ability <> '' then scannerAbilities := scannerAbilities + ability + ', ';
+				end;
 			end;
 		end;
 		
@@ -162,8 +213,25 @@ begin
 			else if keyword = $00280177 then scannerTemperament := 'Defensive'
 			else if keyword = $001699A1 then scannerTemperament := 'Peaceful'
 			else if keyword = $002634BC then scannerHarvest := 'Non-lethal harvest'
-			else if keyword = $002AC11D then scannerDomesticate := 'Outpost production allowed';
+			else if keyword = $002AC11D then scannerDomesticate := 'Outpost production allowed'
+			else if keyword = $002CC9F2 then actorType := 'Predator'
+			else if keyword = $00258350 then actorType := 'Prey'
+			else if keyword = $002CC9F5 then actorType := 'Critter'
+			else if keyword = $001C486F then difficulty := 'Level 1'
+			else if keyword = $001C48E5 then difficulty := 'Very Easy'
+			else if keyword = $001C4A7A then difficulty := 'Easy'
+			else if keyword = $001C4866 then difficulty := 'Normal'
+			else if keyword = $001C4A79 then difficulty := 'Hard'
+			else if keyword = $001C48E4 then difficulty := 'Very Hard';
+			
+			keywordName := EditorID(RecordByFormID(FileByIndex(0), keyword, False));
+			keywordNameStart := Copy(keywordName, 1, 3);
+			if keywordNameStart = 'ENV' then envkeywords := envkeywords + keywordName + ', ';
+			
+			
 		end;
+		
+		//if actorType = 'Critter' then difficulty := 'Critter';
 		
 		prefix := ApplyRuleset(prefixRules, keywords);
 		if length(prefix) > 0 then name := prefix + ' ';
@@ -178,33 +246,60 @@ begin
 		suffix2 := ApplyRuleset(suffixRules2, keywords);		
 		if length(suffix2) > 0 then name :=name + ' ' + suffix2;
 
-		
-		sl.Add(Format('%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s', [
+		//remove trailing comma+space
+		if length(scannerResistances) <> 0 then scannerResistances := Copy(scannerResistances, 1, length(scannerResistances) - 2);
+		if length(scannerWeaknesses) <> 0 then scannerWeaknesses := Copy(scannerWeaknesses, 1, length(scannerWeaknesses) - 2);
+		if length(scannerAbilities) <> 0 then scannerAbilities := Copy(scannerAbilities, 1, length(scannerAbilities) - 2);
+		if length(factions) <> 0 then factions := Copy(factions, 1, length(factions) - 2);
+		if length(behavior) <> 0 then behavior := Copy(behavior, 1, length(behavior) - 2);
+		if length(envkeywords) <> 0 then envkeywords := Copy(envkeywords, 1, length(envkeywords) - 2);
+
+		//awful awful awful
+		if scannerResistances = 'Energy damage, Physical damage, Blast damage, Physical damage' then scannerResistances := 'Energy damage, Physical damage, Blast damage';
+		if scannerResistances = 'Energy damage, Physical damage, Energy damage, Physical damage' then scannerResistances := 'Energy damage, Physical damage';
+
+		creatureData := Format('%s|%s|%s|', [
 			IntToHex(FixedFormID(e), 8),
 			EditorID(e),
-			raceID,
-			skinID,
-			name,
-			biomes,
+			name
+		]);
+		
+		scannerData := Format('%s|%s|%s|%s|%s|%s|%s|%s|', [
 			scannerTemperament,
 			resource,
+			biomes,
+			scannerAbilities,
+			scannerResistances,
+			scannerWeaknesses,
 			scannerHarvest,
-			scannerDomesticate,
+			scannerDomesticate
+		]);
+		
+		extraData := Format('%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|', [
+			raceID,
+			skinID,
+			actorType,
+			difficulty,
+			combatstyle,
 			diet,
+			size,
+			schedule,
+			behavior,
+			factions,
+			envkeywords
+		]);
+
+		omodData := Format('%s|%s|%s|%s|%s|%s|%s', [
 			biomeFaction,
 			temperament,
 			organicResource,
 			resourceType,
 			skin,
-			schedule,
-			size,
 			challenge,
-			combatstyle,
-			enviro1,
-			enviro2,
-			enviro3,
 			extramods
-		]));
+		]);
+
+		sl.Add(creatureData + scannerData + extraData + omodData);
 		
 		keywords.Free;
 		avifs.Free;
