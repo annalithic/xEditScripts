@@ -124,7 +124,8 @@ begin
 	isCCT := False;
 	healthMult := 1.0;
 	for i := 0 to Pred(ElementCount(ElementByPath(e, 'Keywords\KWDA'))) do begin
-		keywords.Add(GetNativeValue(ElementByIndex(ElementByPath(e, 'Keywords\KWDA'), i)));
+		keyword := GetNativeValue(ElementByIndex(ElementByPath(e, 'Keywords\KWDA'), i));
+		if keywords.IndexOf(keyword) = -1 then keywords.Add(keyword);
 		if keywords[i] = $002AD3EC then isCCT := True;
 	end;
 	
@@ -134,6 +135,7 @@ begin
 		omods := ElementByName(ElementBySignature(ElementByIndex(ElementByIndex(templates, 1), 0), 'OBTS'), 'Includes');
 		for i := 0 to Pred(ElementCount(omods)) do begin
 			omod := LinksTo(ElementByName(ElementByIndex(omods, i), 'Mod'));
+			if EditorID(omod) = 'mod_CCT_Special_Boss' then healthMult = healthMult + 1.5; //real ugly hardcoding, actually not needed? alpha ashta is quest boss, not in biome
 			
 			attachPoint := GetNativeValue(ElementByPath(omod, 'DATA\Attach Point'));
 			if attachPoint = $002AD3E8 then diet := GetEditValue(ElementBySignature(omod, 'FULL'))
@@ -156,12 +158,15 @@ begin
 			for j := 0 to Pred(ElementCount(properties)) do begin
 				omodproperty := ElementByIndex(properties, j);
 				propertyname := GetEditValue(ElementByName(omodproperty, 'Property Name'));
-				if propertyname = 'NPC - Keyword' then
-					keywords.Add(GetNativeValue(ElementByName(omodproperty, 'Value 1 - FormID')))
-				else if propertyname = 'NPC - Actor Value' then begin
+				if propertyname = 'NPC - Keyword' then begin
+					keyword := GetNativeValue(ElementByName(omodproperty, 'Value 1 - FormID'));
+					if keywords.IndexOf(keyword) = -1 then keywords.Add(keyword);
+				end else if propertyname = 'NPC - Actor Value' then begin
 					av := GetNativeValue(ElementByName(omodproperty, 'Value 1 - FormID'));
 					avifs.Add(av);
-					if av = $000002D4 then healthMult := healthMult + GetNativeValue(ElementByName(omodproperty, 'Value 2 - Float')); //
+					if av = $000002D4 then begin
+						healthMult := healthMult + GetNativeValue(ElementByName(omodproperty, 'Value 2 - Float')); //
+					end;
 				end else if propertyname = 'NPC - Race' then
 					raceID := EditorID(LinksTo(ElementByName(omodproperty, 'Value 1 - FormID')))
 				else if propertyname = 'NPC - Skin' then
@@ -229,7 +234,7 @@ begin
 			else if keyword = $001C4A79 then difficulty := 'Hard'
 			else if keyword = $001C48E4 then difficulty := 'Very Hard'
 			else if (keyword = $00138EDD) and ((raceID = 'QuadrupedBRace') or (raceID = 'HexapodARace') or (raceID = 'BipedARace') or (raceID = 'MantidARace')) 
-				then healthMult := healthMult + 2.0;
+				then healthMult := healthMult * 3;
 			
 			keywordName := EditorID(RecordByFormID(FileByIndex(0), keyword, False));
 			keywordNameStart := Copy(keywordName, 1, 3);
