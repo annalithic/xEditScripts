@@ -30,6 +30,7 @@ begin
 	end;
 
 	path := ProgramPath + 'Edit Scripts\SFTR\' + name + '.txt';
+	AddMessage(path);
 	planet.SaveToFile(path);
 	planet.Free;
 end;
